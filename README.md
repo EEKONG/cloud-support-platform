@@ -1,157 +1,184 @@
-# AWS EC2 + NGINX + Flask Production Deployment
+# AWS EC2 + NGINX + Flask Production Deployment with AI Log Intelligence
 
 ## Project Overview
 
-This project demonstrates the deployment, monitoring, and troubleshooting of a production-style Flask application hosted on AWS EC2 using NGINX as a reverse proxy, Gunicorn as the application server, Let's Encrypt SSL certificates, systemd service management, and Amazon CloudWatch monitoring.
+This project demonstrates the deployment, monitoring, and operational support of a production-style Flask application hosted on AWS EC2 using NGINX as a reverse proxy, Gunicorn as the application server, Let's Encrypt SSL certificates, Amazon CloudWatch monitoring, and OpenAI-powered AI Log Intelligence.
 
-The objective of this project was to illustrate hands-on experience with Linux administration, web application deployment, reverse proxy configuration, HTTPS implementation, service management, monitoring, alerting, and production troubleshooting.
+The project showcases end-to-end cloud infrastructure deployment, production support, observability, incident analysis, and AI-assisted troubleshooting commonly performed by Cloud Support Engineers, Technical Support Engineers, and Site Reliability Engineers (SREs).
 
 ---
 
-## Architecture
+# Architecture
 
 ```text
-Internet
-    │
-    ▼
-AWS Security Group
-(Ports 80, 443)
-    │
-    ▼
-NGINX Reverse Proxy
-    │
-    ▼
-Gunicorn
-(127.0.0.1:5000)
-    │
-    ▼
-Flask Application
-    │
-    ▼
-CloudWatch Monitoring & Alerts
+                        Internet
+                            │
+                            ▼
+                  AWS Security Group
+                  (Ports 80 / 443)
+                            │
+                            ▼
+                   NGINX Reverse Proxy
+                            │
+                            ▼
+                        Gunicorn
+                   (127.0.0.1:5000)
+                            │
+                            ▼
+                    Flask Application
+                            │
+                            ▼
+                  Amazon CloudWatch Logs
+                            │
+                            ▼
+                  Python + boto3 Collector
+                            │
+                            ▼
+                 OpenAI Log Intelligence
+                            │
+                            ▼
+         AI Incident Report & Root Cause Analysis
 ```
 
 ---
 
-## Technologies Used
+# Technologies Used
 
-### Cloud
+## Cloud
 
-* AWS EC2
-* Amazon CloudWatch
-* IAM
+- AWS EC2
+- Amazon CloudWatch
+- IAM
+- CloudWatch Logs
 
-### Web & Application
+## AI
 
-* Python
-* Flask
-* Gunicorn
-* NGINX
+- OpenAI API
+- OpenAI Python SDK
 
-### Linux & Operations
+## Web & Application
 
-* Amazon Linux
-* systemd
-* SSH
-* journalctl
-* curl
+- Python
+- Flask
+- Gunicorn
+- NGINX
 
-### Security
+## Linux & Operations
 
-* Let's Encrypt
-* Certbot
-* HTTPS/TLS
+- Amazon Linux
+- systemd
+- SSH
+- journalctl
+- curl
+- boto3
 
----
+## Security
 
-## Features
-
-* Flask web application deployment
-* NGINX reverse proxy configuration
-* HTTPS enabled using Let's Encrypt
-* Automatic HTTP to HTTPS redirection
-* Gunicorn application server
-* systemd service management
-* CloudWatch monitoring and alarms
-* Health check endpoint
-* Log analysis and troubleshooting
-* SSL certificate auto-renewal validation
+- Let's Encrypt
+- Certbot
+- HTTPS / TLS
 
 ---
 
-## Application Endpoints
+# Features
 
-| Endpoint  | Description              |
-| --------- | ------------------------ |
-| `/`       | Application landing page |
-| `/health` | Health check endpoint    |
-| `/skill`  | Sample API endpoint      |
+## Infrastructure
+
+- Flask application deployment
+- Gunicorn application server
+- NGINX reverse proxy
+- HTTPS using Let's Encrypt
+- Automatic HTTP → HTTPS redirection
+- systemd service management
+
+## Monitoring
+
+- CloudWatch metrics
+- CloudWatch alarms
+- CloudWatch log aggregation
+- Health monitoring
+
+## AI Log Intelligence
+
+- Retrieve NGINX logs from CloudWatch
+- AI-powered connection summaries
+- Incident detection
+- Error analysis
+- Root cause analysis
+- Severity classification
+- Recommended remediation
+- Suggested AWS/Linux diagnostic commands
+- Customer-facing incident updates
 
 ---
 
-## Deployment Process
+# Application Endpoints
 
-### 1. Launch EC2 Instance
+| Endpoint | Description |
+|----------|-------------|
+| / | Landing Page |
+| /health | Health Check |
+| /skill | Sample API Endpoint |
 
-* Amazon Linux EC2 instance
-* Configure Security Groups
+---
 
-  * Port 22 (SSH)
-  * Port 80 (HTTP)
-  * Port 443 (HTTPS)
+# Deployment Process
 
-### 2. Install Dependencies
+## 1. Launch EC2
+
+- Amazon Linux EC2
+- Configure Security Groups
+    - SSH (22)
+    - HTTP (80)
+    - HTTPS (443)
+
+## 2. Install Dependencies
 
 ```bash
 sudo dnf update -y
 sudo dnf install nginx python3 python3-pip git -y
 ```
 
-### 3. Create Python Virtual Environment
+## 3. Configure Python
 
 ```bash
 python3 -m venv venv
 source venv/bin/activate
-pip install flask gunicorn
+
+pip install flask
+pip install gunicorn
+pip install boto3
+pip install openai
+pip install python-dotenv
 ```
 
-### 4. Deploy Flask Application
+## 4. Deploy Flask
 
 ```bash
 gunicorn --workers 3 --bind 127.0.0.1:5000 app:app
 ```
 
-### 5. Configure NGINX
+## 5. Configure NGINX
 
-Configured NGINX to:
+- Reverse Proxy
+- SSL Termination
+- HTTP → HTTPS Redirect
+- Proxy to Gunicorn
 
-* Listen on ports 80 and 443
-* Reverse proxy requests to Gunicorn
-* Redirect HTTP traffic to HTTPS
-* Serve SSL certificates
-
-### 6. Configure systemd
-
-Created a systemd service to ensure:
-
-* Automatic startup after reboot
-* Service monitoring
-* Simplified management
+## 6. Configure systemd
 
 ```bash
 sudo systemctl enable flaskapp
 sudo systemctl start flaskapp
 ```
 
-### 7. Enable HTTPS
-
-Used Certbot and Let's Encrypt:
+## 7. Configure HTTPS
 
 ```bash
 sudo certbot --nginx
 ```
 
-Verified certificate renewal:
+Validate:
 
 ```bash
 sudo certbot renew --dry-run
@@ -159,182 +186,141 @@ sudo certbot renew --dry-run
 
 ---
 
-## Monitoring
+# CloudWatch Monitoring
 
-### CloudWatch Metrics
+## Metrics
 
-Monitored:
+- CPU
+- Memory
+- Disk
 
-* CPU Utilization
-* Memory Utilization
-* Disk Utilization
+## Alarms
 
-### CloudWatch Alarms
+- High CPU
+- High Memory
+- High Disk
 
-Created alarms for:
+## Log Groups
 
-* High CPU Usage
-* High Memory Usage
-* High Disk Usage
-
----
-
-## Troubleshooting Scenarios
-
-### 502 Bad Gateway
-
-Issue:
-
-* NGINX returned 502 errors.
-
-Investigation:
-
-* Verified Gunicorn service status.
-* Confirmed Gunicorn binding.
-* Reviewed NGINX error logs.
-
-Resolution:
-
-* Corrected Gunicorn startup configuration and upstream settings.
+- /ec2/flask-nginx/access
+- /ec2/flask-nginx/error
 
 ---
 
-### HTTPS Validation
+# AI Log Intelligence
 
-Issue:
+The project includes an AI-powered log analysis module that retrieves CloudWatch logs using boto3 and analyzes them using the OpenAI API.
 
-* SSL certificate validation errors.
+### Example Output
 
-Investigation:
+The AI generates:
 
-* Verified DNS records.
-* Confirmed Certbot configuration.
-* Tested certificate renewal.
-
-Resolution:
-
-* Successfully configured Let's Encrypt certificates and automated renewal.
+- Executive Summary
+- Connection Activity
+- Errors & Anomalies
+- Root Cause Analysis
+- Severity Assessment
+- Recommended Actions
+- AWS/Linux Diagnostic Commands
+- Customer Status Update
 
 ---
 
-### Log Analysis
+# Troubleshooting Scenarios
 
-Reviewed:
+## 502 Bad Gateway
 
-```bash
-sudo tail -f /var/log/nginx/access.log
-sudo tail -f /var/log/nginx/error.log
-sudo journalctl -u flaskapp -f
+Resolved by:
+
+- Verifying Gunicorn
+- Reviewing NGINX configuration
+- Inspecting CloudWatch logs
+
+---
+
+## SSL Validation
+
+Resolved by:
+
+- Validating DNS
+- Configuring Certbot
+- Testing certificate renewal
+
+---
+
+## AI Log Analysis
+
+Example workflow:
+
+```text
+CloudWatch Logs
+      │
+      ▼
+Python Collector
+      │
+      ▼
+OpenAI Analysis
+      │
+      ▼
+Incident Report
 ```
 
-Observed:
+---
 
-* User traffic
-* Health checks
-* Automated internet scans
-* HTTP redirects
-* Application responses
+# Security
+
+- Gunicorn bound to localhost
+- HTTPS enforced
+- CloudWatch IAM permissions
+- Security Groups
+- Environment variables
+- API keys excluded from Git
+- SSL auto-renewal
 
 ---
 
-### Resource Monitoring
+# Skills Demonstrated
 
-Generated controlled CPU and memory load using:
-
-```bash
-stress --cpu 2 --timeout 600
-```
-
-Used CloudWatch metrics and alarms to validate monitoring and alerting behavior.
-
----
-
-## Security Measures
-
-* Gunicorn bound to localhost only
-* HTTPS enforced
-* SSL certificate auto-renewal configured
-* Reverse proxy architecture
-* Security Group restrictions
-* No sensitive credentials stored in repository
-
----
-
-## Validation Results
-
-### Service Status
-
-```bash
-systemctl status nginx
-systemctl status flaskapp
-```
-
-Result:
-
-* NGINX running
-* Flask application running
-* Services enabled on startup
-
-### Endpoint Validation
-
-```bash
-curl -I https://edikanekong.online
-curl -I https://edikanekong.online/health
-curl -I https://edikanekong.online/skill
-```
-
-Results:
-
-* HTTPS working
-* Health endpoint responding
-* Application endpoints accessible
-
-### SSL Renewal Validation
-
-```bash
-sudo certbot renew --dry-run
-```
-
-Result:
-
-* Successful simulated certificate renewal
+- AWS EC2
+- CloudWatch
+- CloudWatch Logs
+- IAM
+- Python
+- Flask
+- Gunicorn
+- NGINX
+- Linux Administration
+- HTTPS / TLS
+- OpenAI API
+- AI Log Intelligence
+- boto3
+- Incident Response
+- Root Cause Analysis
+- Production Support
+- Observability
 
 ---
 
-## Skills Demonstrated
+# Future Enhancements
 
-* Linux Administration
-* NGINX Configuration
-* Reverse Proxy Architecture
-* AWS EC2
-* CloudWatch Monitoring
-* SSL/TLS Management
-* Application Deployment
-* Service Management
-* Log Analysis
-* Incident Troubleshooting
-* Root Cause Analysis
-* Production Support
-
----
-
-## Future Enhancements
-
-* Infrastructure as Code using Terraform
-* Route 53 DNS Management
-* CI/CD with GitHub Actions
-* Docker Containerization
-* Load Balancer Integration
-* Auto Scaling Groups
-* Centralized Logging
-* Monitoring Dashboards
+- Terraform
+- GitHub Actions CI/CD
+- Docker
+- Kubernetes
+- Route 53
+- AWS Systems Manager
+- CloudWatch Dashboards
+- Slack / Microsoft Teams Incident Notifications
+- AI Security Analysis
+- AI Performance Analysis
+- AI Anomaly Detection
 
 ---
 
-## Author
+# Author
 
 **Edikan Ekong**
 
 AWS Certified Cloud Practitioner
 
-Cloud Support | Technical Support Engineering | Platform Support
+Cloud Support Engineering | Platform Support | AI-Powered Operations | Technical Support Engineering
