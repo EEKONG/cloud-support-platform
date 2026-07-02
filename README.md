@@ -61,13 +61,11 @@ This project demonstrates how to:
 ```
 cloud-support-platform/
 │
-├── app/
 ├── nginx/
 ├── systemd/
 ├── ai-log-intelligence/
-├── cloudwatch/
-├── scripts/
-├── docs/
+├── cloudwatch_logs/
+├── screenshots/
 └── README.md
 ```
 
