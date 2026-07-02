@@ -1,54 +1,135 @@
-# AWS EC2 + NGINX + Flask Production Deployment with AI Log Intelligence
+# Cloud Support Platform
 
-## Project Overview
+An end-to-end cloud operations platform demonstrating production deployment, monitoring, observability, AI-assisted troubleshooting, and infrastructure automation on AWS.
 
-This project demonstrates the deployment, monitoring, and operational support of a production-style Flask application hosted on AWS EC2 using NGINX as a reverse proxy, Gunicorn as the application server, Let's Encrypt SSL certificates, Amazon CloudWatch monitoring, and OpenAI-powered AI Log Intelligence.
-
-The project showcases end-to-end cloud infrastructure deployment, production support, observability, incident analysis, and AI-assisted troubleshooting commonly performed by Cloud Support Engineers, Technical Support Engineers, and Site Reliability Engineers (SREs).
+The platform simulates the day-to-day responsibilities of a Cloud Support Engineer, Platform Engineer, and Site Reliability Engineer by combining cloud infrastructure, Linux administration, monitoring, automation, and AI-powered incident analysis into a single project.
 
 ---
 
-# Architecture
+# Project Objectives
+
+This project demonstrates how to:
+
+- Deploy a production-ready web application
+- Secure workloads using HTTPS and IAM
+- Monitor infrastructure using CloudWatch
+- Analyze logs using AI
+- Troubleshoot production incidents
+- Automate cloud operations
+- Build scalable cloud infrastructure
+
+---
+
+# Platform Architecture
 
 ```text
-                        Internet
-                            │
-                            ▼
-                  AWS Security Group
-                  (Ports 80 / 443)
-                            │
-                            ▼
-                   NGINX Reverse Proxy
-                            │
-                            ▼
+                         Users
+                           │
+                           ▼
+                   AWS Security Group
+                           │
+                           ▼
+                    NGINX Reverse Proxy
+                           │
+                           ▼
                         Gunicorn
-                   (127.0.0.1:5000)
-                            │
-                            ▼
+                           │
+                           ▼
                     Flask Application
-                            │
-                            ▼
-                  Amazon CloudWatch Logs
-                            │
-                            ▼
-                  Python + boto3 Collector
-                            │
-                            ▼
-                 OpenAI Log Intelligence
-                            │
-                            ▼
-         AI Incident Report & Root Cause Analysis
+                           │
+                           ▼
+                 Amazon CloudWatch Logs
+                           │
+             ┌─────────────┴─────────────┐
+             ▼                           ▼
+      CloudWatch Metrics          CloudWatch Alarms
+             │
+             ▼
+          AI Log Intelligence
+             │
+             ▼
+     Incident Report Generation
+             │
+             ▼
+     Root Cause Recommendations
 ```
 
 ---
 
-# Technologies Used
+# Repository Structure
+
+```
+cloud-support-platform/
+│
+├── app/
+├── nginx/
+├── systemd/
+├── ai-log-intelligence/
+├── cloudwatch/
+├── scripts/
+├── docs/
+└── README.md
+```
+
+---
+
+# Current Modules
+
+## Application Deployment
+
+Production deployment using:
+
+- Flask
+- Gunicorn
+- NGINX
+- systemd
+
+---
+
+## Cloud Infrastructure
+
+- AWS EC2
+- IAM
+- Security Groups
+- HTTPS
+- Let's Encrypt
+
+---
+
+## Monitoring
+
+- CloudWatch Metrics
+- CloudWatch Alarms
+- CloudWatch Logs
+
+---
+
+## AI Log Intelligence
+
+The platform includes an AI-powered incident analysis engine that retrieves CloudWatch Logs using boto3 and analyzes production activity using the OpenAI API.
+
+### Current Capabilities
+
+- Connection summaries
+- HTTP status breakdown
+- Successful vs failed request counts
+- Peak traffic analysis
+- Error detection
+- Root cause analysis
+- Severity classification
+- Recommended remediation
+- AWS/Linux troubleshooting commands
+- Customer-ready incident summaries
+
+---
+
+# Technology Stack
 
 ## Cloud
 
 - AWS EC2
-- Amazon CloudWatch
 - IAM
+- CloudWatch
 - CloudWatch Logs
 
 ## AI
@@ -56,264 +137,145 @@ The project showcases end-to-end cloud infrastructure deployment, production sup
 - OpenAI API
 - OpenAI Python SDK
 
-## Web & Application
+## Backend
 
 - Python
 - Flask
 - Gunicorn
+
+## Web
+
 - NGINX
 
-## Linux & Operations
+## Linux
 
 - Amazon Linux
 - systemd
 - SSH
 - journalctl
-- curl
-- boto3
-
-## Security
-
-- Let's Encrypt
-- Certbot
-- HTTPS / TLS
-
----
-
-# Features
-
-## Infrastructure
-
-- Flask application deployment
-- Gunicorn application server
-- NGINX reverse proxy
-- HTTPS using Let's Encrypt
-- Automatic HTTP → HTTPS redirection
-- systemd service management
 
 ## Monitoring
 
-- CloudWatch metrics
-- CloudWatch alarms
-- CloudWatch log aggregation
-- Health monitoring
-
-## AI Log Intelligence
-
-- Retrieve NGINX logs from CloudWatch
-- AI-powered connection summaries
-- Incident detection
-- Error analysis
-- Root cause analysis
-- Severity classification
-- Recommended remediation
-- Suggested AWS/Linux diagnostic commands
-- Customer-facing incident updates
+- boto3
+- CloudWatch
 
 ---
 
-# Application Endpoints
+# Production Scenarios Covered
 
-| Endpoint | Description |
-|----------|-------------|
-| / | Landing Page |
-| /health | Health Check |
-| /skill | Sample API Endpoint |
+✔ Reverse proxy deployment
 
----
+✔ HTTPS configuration
 
-# Deployment Process
+✔ SSL renewal
 
-## 1. Launch EC2
+✔ 502 Bad Gateway troubleshooting
 
-- Amazon Linux EC2
-- Configure Security Groups
-    - SSH (22)
-    - HTTP (80)
-    - HTTPS (443)
+✔ Gunicorn service recovery
 
-## 2. Install Dependencies
+✔ CloudWatch monitoring
 
-```bash
-sudo dnf update -y
-sudo dnf install nginx python3 python3-pip git -y
-```
+✔ AI-powered incident analysis
 
-## 3. Configure Python
+✔ Root Cause Analysis (RCA)
 
-```bash
-python3 -m venv venv
-source venv/bin/activate
+✔ Production log investigation
 
-pip install flask
-pip install gunicorn
-pip install boto3
-pip install openai
-pip install python-dotenv
-```
-
-## 4. Deploy Flask
-
-```bash
-gunicorn --workers 3 --bind 127.0.0.1:5000 app:app
-```
-
-## 5. Configure NGINX
-
-- Reverse Proxy
-- SSL Termination
-- HTTP → HTTPS Redirect
-- Proxy to Gunicorn
-
-## 6. Configure systemd
-
-```bash
-sudo systemctl enable flaskapp
-sudo systemctl start flaskapp
-```
-
-## 7. Configure HTTPS
-
-```bash
-sudo certbot --nginx
-```
-
-Validate:
-
-```bash
-sudo certbot renew --dry-run
-```
-
----
-
-# CloudWatch Monitoring
-
-## Metrics
-
-- CPU
-- Memory
-- Disk
-
-## Alarms
-
-- High CPU
-- High Memory
-- High Disk
-
-## Log Groups
-
-- /ec2/flask-nginx/access
-- /ec2/flask-nginx/error
-
----
-
-# AI Log Intelligence
-
-The project includes an AI-powered log analysis module that retrieves CloudWatch logs using boto3 and analyzes them using the OpenAI API.
-
-### Example Output
-
-The AI generates:
-
-- Executive Summary
-- Connection Activity
-- Errors & Anomalies
-- Root Cause Analysis
-- Severity Assessment
-- Recommended Actions
-- AWS/Linux Diagnostic Commands
-- Customer Status Update
-
----
-
-# Troubleshooting Scenarios
-
-## 502 Bad Gateway
-
-Resolved by:
-
-- Verifying Gunicorn
-- Reviewing NGINX configuration
-- Inspecting CloudWatch logs
-
----
-
-## SSL Validation
-
-Resolved by:
-
-- Validating DNS
-- Configuring Certbot
-- Testing certificate renewal
-
----
-
-## AI Log Analysis
-
-Example workflow:
-
-```text
-CloudWatch Logs
-      │
-      ▼
-Python Collector
-      │
-      ▼
-OpenAI Analysis
-      │
-      ▼
-Incident Report
-```
-
----
-
-# Security
-
-- Gunicorn bound to localhost
-- HTTPS enforced
-- CloudWatch IAM permissions
-- Security Groups
-- Environment variables
-- API keys excluded from Git
-- SSL auto-renewal
+✔ Security scan detection
 
 ---
 
 # Skills Demonstrated
 
+## Cloud
+
 - AWS EC2
+- IAM
 - CloudWatch
 - CloudWatch Logs
-- IAM
+
+## Linux
+
+- Linux Administration
+- systemd
+- NGINX
+
+## Development
+
 - Python
 - Flask
-- Gunicorn
-- NGINX
-- Linux Administration
-- HTTPS / TLS
-- OpenAI API
-- AI Log Intelligence
-- boto3
+- REST APIs
+
+## Observability
+
+- Monitoring
+- Logging
 - Incident Response
 - Root Cause Analysis
-- Production Support
-- Observability
+
+## AI
+
+- OpenAI API
+- AI Log Intelligence
+- Prompt Engineering
 
 ---
 
-# Future Enhancements
+# Roadmap
+
+## Infrastructure
 
 - Terraform
-- GitHub Actions CI/CD
+
 - Docker
+
 - Kubernetes
+
 - Route 53
-- AWS Systems Manager
-- CloudWatch Dashboards
-- Slack / Microsoft Teams Incident Notifications
-- AI Security Analysis
-- AI Performance Analysis
-- AI Anomaly Detection
+
+---
+
+## DevOps
+
+- GitHub Actions
+
+- CI/CD
+
+- Automated Testing
+
+---
+
+## AI
+
+- Security Analysis
+
+- Performance Analysis
+
+- Latency Analysis
+
+- Cost Optimization
+
+- Predictive Incident Detection
+
+- AI Incident Timeline
+
+---
+
+## Notifications
+
+- Slack
+
+- Microsoft Teams
+
+- Email Alerts
+
+---
+
+# Why This Project
+
+Modern Cloud Support Engineers are expected to combine infrastructure knowledge, Linux troubleshooting, monitoring, automation, and AI-assisted operations.
+
+This platform demonstrates those capabilities through real-world production scenarios and continuous feature enhancements.
 
 ---
 
@@ -323,4 +285,4 @@ Incident Report
 
 AWS Certified Cloud Practitioner
 
-Cloud Support Engineering | Platform Support | AI-Powered Operations | Technical Support Engineering
+Cloud Support Engineer | Platform Support Engineer | AI-Powered Cloud Operations
