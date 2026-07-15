@@ -17,6 +17,14 @@ cloudwatch_access_logs.csv
 cloudwatch_error_logs.csv
 *.csv
 
+# Terraform local state, plans, and provider cache
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfplan
+*.tfplan.*
+
 # Local tooling and OS files
 .vscode/
 .idea/
