@@ -10,7 +10,7 @@ output "elastic_ip" {
 
 output "ssh_command" {
   description = "SSH command to connect to the instance"
-  value       = "ssh -i tsekeypair.pem ec2-user@${aws_eip.web_eip.public_ip}"
+  value       = "ssh -i xxxxxxxxx.pem ec2-user@${aws_eip.web_eip.public_ip}"
 }
 
 output "website_http_url" {
