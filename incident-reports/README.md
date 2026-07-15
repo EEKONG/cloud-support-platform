@@ -37,7 +37,7 @@ The reports intentionally include commands, sanitized outputs, rejected hypothes
 
 ## Supporting Documents
 
-- [Operational command reference](COMMAND-REFERENCE.md)
+- [Operational command reference](COMMAND-REF.md)
 - [Reusable incident template](INCIDENT-TEMPLATE.md)
 - [Security and publication policy](SECURITY.md)
 
