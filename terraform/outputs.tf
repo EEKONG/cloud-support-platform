@@ -32,3 +32,8 @@ output "website_https_url" {
   description = "HTTPS URL"
   value       = "https://${aws_eip.web_eip.public_ip}"
 }
+
+output "sns_topic_arn" {
+  description = "SNS topic used by CloudWatch alarms"
+  value       = aws_sns_topic.alerts.arn
+}
