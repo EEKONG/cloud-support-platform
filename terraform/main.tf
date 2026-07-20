@@ -1,24 +1,7 @@
-# Automatically determine your current public IP
-data "http" "my_public_ip" {
-  url = "https://checkip.amazonaws.com"
-}
-
-locals {
-  my_ip_cidr = "${chomp(data.http.my_public_ip.response_body)}/32"
-}
-
 # Security Group
 resource "aws_security_group" "web_sg" {
   name        = "${var.project_name}-sg"
   description = "Security group for Flask NGINX Support App"
-
-  ingress {
-    description = "SSH from my current public IP"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = [local.my_ip_cidr]
-  }
 
   ingress {
     description = "HTTP"
@@ -55,6 +38,7 @@ resource "aws_instance" "web_server" {
   ami                         = var.ami_id
   instance_type               = var.instance_type
   key_name                    = var.key_name
+  iam_instance_profile        = aws_iam_instance_profile.ec2_ssm_profile.name
   vpc_security_group_ids      = [aws_security_group.web_sg.id]
   associate_public_ip_address = true
 

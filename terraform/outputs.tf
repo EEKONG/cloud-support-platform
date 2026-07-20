@@ -18,9 +18,9 @@ output "application_url" {
   value       = "http://${aws_eip.web_eip.public_ip}"
 }
 
-output "ssh_command" {
-  description = "SSH command to connect to the instance"
-  value       = "ssh -i xxxxxxxxx.pem ec2-user@${aws_eip.web_eip.public_ip}"
+output "session_manager_command" {
+  description = "AWS CLI command for connecting through Session Manager"
+  value       = "aws ssm start-session --target ${aws_instance.web_server.id} --region ${var.aws_region}"
 }
 
 output "website_http_url" {
