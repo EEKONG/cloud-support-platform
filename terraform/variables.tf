@@ -50,3 +50,17 @@ variable "key_name" {
     error_message = "key_name must not be empty."
   }
 }
+
+variable "domain_name" {
+  description = "Primary domain name used by the application"
+  type        = string
+  default     = "edikanekong.online"
+
+  validation {
+    condition = can(regex(
+      "^([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,}$",
+      var.domain_name
+    ))
+    error_message = "domain_name must be a valid domain name such as edikanekong.online."
+  }
+}

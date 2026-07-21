@@ -9,13 +9,13 @@ output "elastic_ip" {
 }
 
 output "public_dns" {
-  description = "Public DNS name for the Elastic IP"
+  description = "Public DNS hostname associated with the Elastic IP"
   value       = aws_eip.web_eip.public_dns
 }
 
 output "application_url" {
-  description = "Primary HTTP URL for the application"
-  value       = "http://${aws_eip.web_eip.public_ip}"
+  description = "Primary HTTPS URL for the application"
+  value       = "https://${var.domain_name}"
 }
 
 output "session_manager_command" {
@@ -24,13 +24,18 @@ output "session_manager_command" {
 }
 
 output "website_http_url" {
-  description = "HTTP URL"
-  value       = "http://${aws_eip.web_eip.public_ip}"
+  description = "HTTP URL that redirects to HTTPS"
+  value       = "http://${var.domain_name}"
 }
 
 output "website_https_url" {
-  description = "HTTPS URL"
-  value       = "https://${aws_eip.web_eip.public_ip}"
+  description = "Primary HTTPS URL"
+  value       = "https://${var.domain_name}"
+}
+
+output "www_https_url" {
+  description = "HTTPS URL using the www subdomain"
+  value       = "https://www.${var.domain_name}"
 }
 
 output "sns_topic_arn" {
