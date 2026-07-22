@@ -69,34 +69,90 @@ Terraform provisions and manages:
 
 ## Architecture
 
-```text
-User Browser
-     |
-     v
-edikanekong.online
-     |
-     v
-DNS A Record
-     |
-     v
-Elastic IP
-     |
-     v
-EC2 Security Group
-     |
-     v
-NGINX on Ports 80 and 443
-     |
-     v
-Gunicorn
-     |
-     v
-Flask Application
+```mermaid
+flowchart TD
+    subgraph RequestPath["Public Application Request Path"]
+        User[User Browser]
+        DNS[External DNS Provider<br/>A and CNAME Records]
+        EIP[Elastic IP<br/>Terraform Managed]
+        SG[EC2 Security Group<br/>Inbound TCP 80 and 443]
+        EC2[Amazon EC2 Instance]
+        NGINX[NGINX<br/>HTTP Redirect and HTTPS Reverse Proxy]
+        Gunicorn[Gunicorn<br/>127.0.0.1:5000]
+        Flask[Flask Application]
+
+        User --> DNS
+        DNS --> EIP
+        EIP --> SG
+        SG --> EC2
+        EC2 --> NGINX
+        NGINX --> Gunicorn
+        Gunicorn --> Flask
+    end
+
+    subgraph Administration["Secure Administrative Access"]
+        Admin[Administrator]
+        SSM[AWS Systems Manager<br/>Session Manager]
+        SSMAgent[Amazon SSM Agent]
+
+        Admin --> SSM
+        SSM --> SSMAgent
+        SSMAgent --> EC2
+    end
+
+    subgraph Identity["Instance Identity and Permissions"]
+        IAM[EC2 IAM Role<br/>and Instance Profile]
+        SSMPolicy[AmazonSSMManagedInstanceCore]
+        CWPolicy[CloudWatchAgentServerPolicy]
+
+        SSMPolicy --> IAM
+        CWPolicy --> IAM
+        IAM --> EC2
+    end
+
+    subgraph Monitoring["Monitoring and Alerting"]
+        CWAgent[Amazon CloudWatch Agent<br/>Configuration Inherited from AMI]
+        AccessLogs[NGINX Access Log Group]
+        ErrorLogs[NGINX Error Log Group]
+        Metrics[AWS EC2 Metrics<br/>CPU and Status Checks]
+        Alarms[Amazon CloudWatch Alarms]
+        SNS[Amazon SNS Topic]
+        Email[Confirmed Email Subscription]
+
+        EC2 --> CWAgent
+        CWAgent --> AccessLogs
+        CWAgent --> ErrorLogs
+        EC2 --> Metrics
+        Metrics --> Alarms
+        Alarms --> SNS
+        SNS --> Email
+    end
+
+    subgraph Provisioning["Infrastructure Provisioning"]
+        Terraform[Terraform Configuration]
+        AMI[Existing Reusable AMI]
+
+        AMI --> EC2
+        Terraform --> EC2
+        Terraform --> EIP
+        Terraform --> SG
+        Terraform --> IAM
+        Terraform --> AccessLogs
+        Terraform --> ErrorLogs
+        Terraform --> Alarms
+        Terraform --> SNS
+    end
 ```
 
-The root domain resolves to the Elastic IP associated with the Terraform-managed EC2 instance.
+The public request path begins with DNS records managed through the external DNS provider. The root domain resolves to the Terraform-managed Elastic IP, which directs traffic through the EC2 security group to NGINX.
 
-NGINX receives public HTTP and HTTPS traffic. HTTP requests are redirected to HTTPS, while HTTPS requests are proxied internally to the Flask application running through Gunicorn.
+NGINX redirects HTTP traffic to HTTPS and proxies HTTPS application requests to Gunicorn on `127.0.0.1:5000`. Gunicorn serves the Flask application without exposing the application port publicly.
+
+Administrative access follows a separate path through AWS Systems Manager Session Manager. The EC2 instance uses an IAM instance profile and the Amazon SSM Agent, allowing shell access without exposing inbound SSH on TCP port 22.
+
+The CloudWatch Agent sends NGINX access and error logs to Terraform-managed CloudWatch log groups. Native EC2 metrics feed CloudWatch alarms, which publish alarm and recovery events to an SNS topic with a separately confirmed email subscription.
+
+Terraform manages the AWS infrastructure shown in the diagram, but DNS records remain externally managed. The EC2 instance is created from an existing reusable AMI that currently contains the CloudWatch Agent installation and configuration.
 
 ## Security Architecture
 
