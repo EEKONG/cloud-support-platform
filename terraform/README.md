@@ -2,7 +2,7 @@
 
 This directory contains the Terraform configuration used to provision and manage the AWS infrastructure for the Cloud Support Platform.
 
-The environment demonstrates infrastructure automation, secure administration, observability, DNS migration, HTTPS validation, and production-style troubleshooting across AWS, Linux, NGINX, Flask, CloudWatch, SNS, and Terraform.
+The environment demonstrates infrastructure automation, secure administration, automated instance bootstrap, observability, DNS migration, HTTPS validation, and production-style troubleshooting across AWS, Linux, NGINX, Flask, CloudWatch, SNS, and Terraform.
 
 ## Project Status
 
@@ -22,6 +22,8 @@ The Terraform-managed environment is operational and publicly available at:
 * Migrated administrative access from SSH to AWS Systems Manager
 * Removed inbound SSH access from the security group
 * Integrated CloudWatch log collection
+* Automated CloudWatch Agent installation and configuration through `user_data.sh`
+* Automated NGINX access and error log collection during instance bootstrap
 * Configured CPU and EC2 status-check alarms
 * Configured SNS alarm and recovery notifications
 * Validated DNS, HTTPS, NGINX, Flask, SSM, and CloudWatch functionality
@@ -31,38 +33,40 @@ The Terraform-managed environment is operational and publicly available at:
 
 ### Planned Improvements
 
-* Automate CloudWatch Agent installation and configuration through bootstrap
 * Manage DNS records directly through Terraform
 * Add automated deployment and rollback procedures
 * Expand application-level health checks
 * Add memory and disk monitoring
 * Add automated infrastructure validation in CI/CD
+* Reduce the remaining dependency on the reusable application AMI
 
 ## Implementation Milestones
 
-| Milestone                  | Status   | Outcome                                                          |
-| -------------------------- | -------- | ---------------------------------------------------------------- |
-| EC2 provisioning           | Complete | Instance created from a reusable AMI                             |
-| Elastic IP                 | Complete | Stable public IP assigned to the instance                        |
-| Secure administration      | Complete | SSM enabled and inbound SSH blocked                              |
-| HTTP and HTTPS             | Complete | Public web traffic permitted on ports 80 and 443                 |
-| DNS migration              | Complete | Root and `www` domains point to the Terraform-managed server     |
-| TLS validation             | Complete | HTTPS requests return successful responses                       |
-| Monitoring                 | Complete | NGINX logs, CloudWatch alarms, and SNS notifications operational |
-| AI log access              | Complete | Least-privilege CloudWatch Logs read access managed by Terraform |
-| Legacy decommissioning     | Complete | Original EC2 environment and obsolete resources removed safely   |
-| CloudWatch Agent bootstrap | Planned  | Agent configuration is currently inherited from the AMI          |
-| Terraform-managed DNS      | Planned  | DNS records are currently managed through the DNS provider       |
-| CI/CD validation           | Planned  | Terraform checks are currently run manually                      |
+| Milestone                  | Status   | Outcome                                                                         |
+| -------------------------- | -------- | ------------------------------------------------------------------------------- |
+| EC2 provisioning           | Complete | Instance created from a reusable AMI                                            |
+| Elastic IP                 | Complete | Stable public IP assigned to the instance                                       |
+| Secure administration      | Complete | SSM enabled and inbound SSH blocked                                             |
+| HTTP and HTTPS             | Complete | Public web traffic permitted on ports 80 and 443                                |
+| DNS migration              | Complete | Root and `www` domains point to the Terraform-managed server                    |
+| TLS validation             | Complete | HTTPS requests return successful responses                                      |
+| Monitoring                 | Complete | NGINX logs, CloudWatch alarms, and SNS notifications operational                |
+| AI log access              | Complete | Least-privilege CloudWatch Logs read access managed by Terraform                |
+| Legacy decommissioning     | Complete | Original EC2 environment and obsolete resources removed safely                  |
+| CloudWatch Agent bootstrap | Complete | Agent installation and NGINX log configuration automated through `user_data.sh` |
+| Terraform-managed DNS      | Planned  | DNS records are currently managed through the external DNS provider             |
+| CI/CD validation           | Planned  | Terraform checks are currently run manually                                     |
 
 ## Managed Infrastructure
 
 Terraform provisions and manages:
 
 * An EC2 security group allowing public HTTP and HTTPS traffic
-* An EC2 instance created from an existing AMI
+* An EC2 instance created from an existing reusable AMI
 * An Elastic IP associated with the EC2 instance
 * Instance bootstrap through `user_data.sh`
+* Automated CloudWatch Agent installation and configuration
+* Automated NGINX access and error log collection
 * An EC2 IAM role and instance profile
 * AWS Systems Manager Session Manager access
 * Amazon CloudWatch Agent permissions
@@ -118,7 +122,8 @@ flowchart TD
     end
 
     subgraph Monitoring["Monitoring and Alerting"]
-        CWAgent[Amazon CloudWatch Agent<br/>Configuration Inherited from AMI]
+        Bootstrap[user_data.sh<br/>CloudWatch Agent Bootstrap]
+        CWAgent[Amazon CloudWatch Agent<br/>Installed and Configured Automatically]
         AccessLogs[NGINX Access Log Group]
         ErrorLogs[NGINX Error Log Group]
         Metrics[AWS EC2 Metrics<br/>CPU and Status Checks]
@@ -126,7 +131,8 @@ flowchart TD
         SNS[Amazon SNS Topic]
         Email[Confirmed Email Subscription]
 
-        EC2 --> CWAgent
+        EC2 --> Bootstrap
+        Bootstrap --> CWAgent
         CWAgent --> AccessLogs
         CWAgent --> ErrorLogs
         EC2 --> Metrics
@@ -137,7 +143,7 @@ flowchart TD
 
     subgraph Provisioning["Infrastructure Provisioning"]
         Terraform[Terraform Configuration]
-        AMI[Existing Reusable AMI]
+        AMI[Existing Reusable Application AMI]
 
         AMI --> EC2
         Terraform --> EC2
@@ -157,9 +163,15 @@ NGINX redirects HTTP traffic to HTTPS and proxies HTTPS application requests to 
 
 Administrative access follows a separate path through AWS Systems Manager Session Manager. The EC2 instance uses an IAM instance profile and the Amazon SSM Agent, allowing shell access without exposing inbound SSH on TCP port 22.
 
+During instance bootstrap, `user_data.sh` installs the Amazon CloudWatch Agent, creates its NGINX log-collection configuration, starts the agent, and enables it for future reboots.
+
 The CloudWatch Agent sends NGINX access and error logs to Terraform-managed CloudWatch log groups. Native EC2 metrics feed CloudWatch alarms, which publish alarm and recovery events to an SNS topic with a separately confirmed email subscription.
 
-Terraform manages the AWS infrastructure shown in the diagram, but DNS records remain externally managed. The EC2 instance is created from an existing reusable AMI that currently contains the CloudWatch Agent installation and configuration.
+Terraform manages the AWS infrastructure shown in the diagram, while DNS records remain externally managed.
+
+The EC2 instance is still created from an existing reusable AMI. The AMI currently provides the deployed application stack, including NGINX, Gunicorn, Flask application files, systemd service definitions, TLS certificates, and the Amazon SSM Agent.
+
+CloudWatch Agent installation and NGINX log configuration are no longer dependent solely on the custom AMI.
 
 ## Security Architecture
 
@@ -171,7 +183,7 @@ The security group permits:
 
 * HTTP on TCP port 80 from the internet
 * HTTPS on TCP port 443 from the internet
-* Outbound traffic required by the operating system, SSM Agent, CloudWatch Agent, and application services
+* Outbound traffic required by the operating system, SSM Agent, CloudWatch Agent, package installation, and application services
 * No inbound SSH access
 
 The EC2 instance uses a dedicated IAM role with an EC2 trust policy.
@@ -214,7 +226,7 @@ Value: edikanekong.online
 
 An Elastic IP provides a stable public address for DNS. A standard EC2 public IPv4 address may change if an instance is stopped or replaced.
 
-Terraform currently exposes the application domain through outputs, but the DNS records themselves are managed separately through the DNS provider.
+Terraform currently exposes the application domain through outputs, but the DNS records themselves are managed separately through the external DNS provider.
 
 ## Prerequisites
 
@@ -226,9 +238,10 @@ Terraform currently exposes the application domain through outputs, but the DNS 
 * AWS permission to manage IAM roles, instance profiles, and policy attachments
 * AWS permission to manage CloudWatch, CloudWatch Logs, and SNS
 * Permission to start AWS Systems Manager sessions
-* An existing AMI in the selected AWS region
-* An active Amazon SSM Agent on the AMI
-* An active Amazon CloudWatch Agent on the AMI
+* An existing reusable AMI in the selected AWS region
+* NGINX, Gunicorn, Flask application files, systemd service definitions, and TLS configuration included in the AMI
+* An active Amazon SSM Agent included in the AMI
+* Outbound network access so the instance can install the CloudWatch Agent and communicate with AWS service endpoints
 * An existing EC2 key pair
 * Session Manager plugin for command-line access
 
@@ -375,19 +388,81 @@ You can also connect through the AWS Console:
 5. Select **Session Manager**.
 6. Choose **Connect**.
 
+## Instance Bootstrap
+
+Terraform passes `terraform/user_data.sh` to the EC2 instance as user data.
+
+The bootstrap script:
+
+* Enables strict Bash error handling with `set -euo pipefail`
+* Writes bootstrap output to `/var/log/user-data.log`
+* Installs the `amazon-cloudwatch-agent` package
+* Starts and enables NGINX
+* Starts and enables the Flask application service
+* Ensures the NGINX log files exist
+* Creates the CloudWatch Agent configuration
+* Configures NGINX access and error log collection
+* Starts the CloudWatch Agent
+* Enables the CloudWatch Agent for future reboots
+
+The bootstrap script reduces dependency on the reusable AMI but does not eliminate it.
+
+The AMI still provides:
+
+* NGINX
+* Gunicorn
+* Flask application files
+* The `flaskapp` systemd service
+* NGINX virtual-host configuration
+* TLS certificates
+* Amazon SSM Agent
+* Other application-specific operating-system configuration
+
+A future improvement would deploy the complete application stack from a clean base Amazon Linux image rather than relying on a preconfigured application AMI.
+
 ## Monitoring and Alerting
 
 ### CloudWatch Agent
 
 The EC2 IAM role includes `CloudWatchAgentServerPolicy`, allowing the CloudWatch Agent to publish logs and custom metrics.
 
-The same role also includes a Terraform-managed inline policy that grants the AI Log Analyzer read access to the NGINX CloudWatch log groups without using the broader legacy `Resource: "*"` log-reader policy.
+The same role also includes a Terraform-managed inline policy that grants the AI Log Analyzer read access to the NGINX CloudWatch log groups without using a broader legacy `Resource: "*"` log-reader policy.
 
-The current AMI already contains the CloudWatch Agent and its configuration.
+CloudWatch Agent installation and configuration are automated through `user_data.sh`.
 
-The existing `user_data.sh` starts NGINX and the Flask application but does not currently install or configure the CloudWatch Agent.
+During instance bootstrap, the script:
 
-This is a known limitation. A future deployment should install and configure the agent automatically rather than relying on the AMI.
+* Installs the `amazon-cloudwatch-agent` package
+* Creates the CloudWatch Agent configuration directory
+* Creates the NGINX log-collection configuration
+* Uses the EC2 instance ID as the CloudWatch log-stream name
+* Starts the CloudWatch Agent
+* Enables the agent to start automatically after future reboots
+* Records bootstrap output in `/var/log/user-data.log`
+
+The generated configuration is stored at:
+
+```text
+/opt/aws/amazon-cloudwatch-agent/etc/cloudwatch-agent.json
+```
+
+The configuration collects:
+
+```text
+/var/log/nginx/access.log
+/var/log/nginx/error.log
+```
+
+and sends those files to:
+
+```text
+/ec2/flask-nginx/access
+/ec2/flask-nginx/error
+```
+
+For the existing Terraform-managed EC2 instance, the updated bootstrap script was executed manually after the Terraform user-data update.
+
+Future EC2 instances created using this Terraform configuration will execute the CloudWatch Agent bootstrap automatically during their initial launch.
 
 ### Log Collection
 
@@ -572,7 +647,7 @@ sudo systemctl status nginx
 Check the Flask application service:
 
 ```bash
-sudo systemctl status flask-app
+sudo systemctl status flaskapp
 ```
 
 Review recent logs:
@@ -606,12 +681,38 @@ Confirm that the EC2 instance has the correct IAM instance profile attached.
 
 Confirm that the instance can reach the AWS Systems Manager endpoints.
 
-### CloudWatch logs are missing
+### CloudWatch Agent bootstrap failed
 
-Check the CloudWatch Agent:
+Review the user-data bootstrap log:
 
 ```bash
-sudo systemctl status amazon-cloudwatch-agent
+sudo tail -n 100 /var/log/user-data.log
+```
+
+Confirm that the CloudWatch Agent package is installed:
+
+```bash
+rpm -q amazon-cloudwatch-agent
+```
+
+Confirm that the generated configuration exists:
+
+```bash
+sudo cat /opt/aws/amazon-cloudwatch-agent/etc/cloudwatch-agent.json
+```
+
+### CloudWatch logs are missing
+
+Check the CloudWatch Agent service:
+
+```bash
+sudo systemctl status amazon-cloudwatch-agent --no-pager
+```
+
+Check the CloudWatch Agent status:
+
+```bash
+sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a status
 ```
 
 Review the agent log:
@@ -622,16 +723,27 @@ sudo tail -n 100 /opt/aws/amazon-cloudwatch-agent/logs/amazon-cloudwatch-agent.l
 
 Confirm that the IAM role includes `CloudWatchAgentServerPolicy`.
 
+Confirm that these files exist and contain recent events:
+
+```bash
+sudo ls -l /var/log/nginx/access.log
+sudo ls -l /var/log/nginx/error.log
+sudo tail -n 20 /var/log/nginx/access.log
+sudo tail -n 20 /var/log/nginx/error.log
+```
+
 ## Validation Results
 
-Validated on July 22, 2026.
+Validated through July 23, 2026.
 
 ### Infrastructure
 
 * Terraform configuration passed `terraform validate`.
 * Terraform formatting checks passed.
 * Terraform successfully managed the EC2 instance and Elastic IP.
-* Terraform output changes were applied without replacing infrastructure.
+* Terraform updated the EC2 user-data configuration in place.
+* The user-data update produced a plan of `0 to add, 1 to change, 0 to destroy`.
+* The user-data update did not destroy or replace the EC2 instance.
 * The CloudWatch Logs reader policy was added without replacing the EC2 instance or IAM role.
 * `terraform plan` reported no configuration drift after legacy resource cleanup.
 
@@ -660,9 +772,13 @@ Validated on July 22, 2026.
 
 ### Monitoring and Alerting
 
+* The CloudWatch Agent installation and configuration were added to `user_data.sh`.
+* The updated bootstrap script completed successfully on the active EC2 instance.
+* The bootstrap created the CloudWatch Agent configuration at `/opt/aws/amazon-cloudwatch-agent/etc/cloudwatch-agent.json`.
 * The Amazon CloudWatch Agent reported `active` and `running`.
 * NGINX access and error log streams appeared for the Terraform-managed instance.
 * Both imported log groups were configured with 14-day retention.
+* Future EC2 instances will install and configure the CloudWatch Agent automatically during initial launch.
 * The CPU and status-check alarms reached a healthy `OK` state.
 * The SNS email subscription was confirmed.
 * A controlled CPU test changed the alarm from `OK` to `ALARM` and back to `OK`.
@@ -687,6 +803,10 @@ Before termination, the original server was preserved as the reusable `cloud-sup
 
 The custom AMI and its associated snapshot remain available for recovery and reproducible instance creation.
 
+The custom AMI continues to provide the deployed application stack, including NGINX, Gunicorn, Flask application files, systemd service definitions, TLS certificates, and the Amazon SSM Agent.
+
+CloudWatch Agent installation and NGINX log configuration are now handled separately through `user_data.sh`.
+
 The AI Log Analyzer permissions previously attached to the legacy IAM role were recreated as a least-privilege Terraform-managed inline policy on the active EC2 role.
 
 The live application remained available throughout the cleanup. Both public HTTPS endpoints returned `200 OK`, and the final Terraform plan reported no configuration drift.
@@ -694,12 +814,14 @@ The live application remained available throughout the cleanup. Both public HTTP
 ## Known Limitations
 
 * DNS records are not currently managed by Terraform.
-* CloudWatch Agent installation is not automated through `user_data.sh`.
-* The configuration currently depends on an existing AMI.
+* The EC2 instance still depends on the reusable custom AMI for NGINX, Gunicorn, Flask application files, systemd service definitions, TLS certificates, and the Amazon SSM Agent.
+* `user_data.sh` automates CloudWatch Agent setup but does not yet deploy the complete application stack from a clean base Amazon Linux image.
 * The existing EC2 key pair remains attached to avoid instance replacement.
 * Application deployment is not yet handled through CI/CD.
 * Rollback procedures are currently manual.
 * Memory and disk alarms are not yet included in the Terraform configuration.
+* CloudWatch Agent configuration is stored directly in the bootstrap script rather than in AWS Systems Manager Parameter Store or another centralized configuration service.
+* The current architecture uses a single EC2 instance and does not provide automatic failover or horizontal scaling.
 
 ## Cleanup
 
@@ -722,5 +844,7 @@ Export any logs that must be retained before destroying the environment.
 The following resource remains outside this Terraform state and requires separate review:
 
 * DNS records managed through the external DNS provider
+
+The reusable AMI and its associated snapshot are also outside this Terraform state and require separate review before deletion.
 
 Do not run `terraform destroy` against infrastructure that is still required.

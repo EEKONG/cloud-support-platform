@@ -42,6 +42,12 @@ resource "aws_instance" "web_server" {
   vpc_security_group_ids      = [aws_security_group.web_sg.id]
   associate_public_ip_address = true
 
+  depends_on = [
+    aws_iam_role_policy_attachment.cloudwatch_agent,
+    aws_cloudwatch_log_group.nginx_access,
+    aws_cloudwatch_log_group.nginx_error
+  ]
+
   user_data = file("${path.module}/user_data.sh")
 
   tags = {
