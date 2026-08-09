@@ -7,11 +7,7 @@ User=ec2-user
 Group=ec2-user
 WorkingDirectory=/home/ec2-user/flask-support-app
 Environment="PATH=/home/ec2-user/flask-support-app/venv/bin"
-
-ExecStart=/home/ec2-user/flask-support-app/venv/bin/gunicorn \
---workers 3 \
---bind 127.0.0.1:5000 \
-app:app
+ExecStart=/home/ec2-user/flask-support-app/venv/bin/gunicorn --workers 3 --bind 127.0.0.1:5000 app.app:app
 
 [Install]
 WantedBy=multi-user.target

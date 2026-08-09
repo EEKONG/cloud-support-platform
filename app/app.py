@@ -1,18 +1,7 @@
-from flask import Flask
+from . import create_app
 
-app = Flask(__name__)
+app = create_app()
 
-@app.route("/")
-def home():
-    return """
-    <h1>AWS EC2 Flask App</h1>
-    <p>Application is running behind NGINX reverse proxy.</p>
-    """
 
-@app.route("/health")
-def health():
-    return {"status": "healthy", "service": "flask-support-app"}, 200
-
-@app.route("/skill")
-def skill():
-    return {"skills": "Technical Support Engineering", "service": "flask-support-app"}, 200
+if __name__ == "__main__":
+    app.run(host="127.0.0.1", port=5000)
