@@ -1,3 +1,5 @@
+import time
+
 from flask import Flask
 
 from .config import Config
@@ -8,6 +10,9 @@ from .routes import main_bp
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
+
+    # Monotonic time is used for measuring application uptime.
+    app.config["START_TIME_MONOTONIC"] = time.monotonic()
 
     app.register_blueprint(main_bp)
     app.register_blueprint(health_bp)

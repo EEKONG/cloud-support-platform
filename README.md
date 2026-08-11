@@ -1,10 +1,10 @@
 # Cloud Support and Incident Intelligence Platform
 
-An AWS-hosted cloud support engineering lab demonstrating infrastructure provisioning, Linux administration, application deployment, monitoring, incident troubleshooting, root-cause analysis, and AI-assisted log investigation.
+An AWS-hosted cloud support engineering lab demonstrating infrastructure provisioning, Linux administration, application deployment, health and readiness monitoring, incident troubleshooting, root-cause analysis, and AI-assisted log investigation.
 
 The platform is designed around the responsibilities of a Cloud Support Engineer or Technical Support Engineer supporting a customer-facing SaaS application.
 
-Rather than focusing primarily on application features, the project demonstrates how failures across the application, web server, Linux operating system, networking, permissions, and AWS infrastructure layers can be detected, investigated, resolved, validated, and documented.
+Rather than focusing primarily on application features, the project demonstrates how failures across the application, web server, Linux operating system, networking, permissions, configuration, and AWS infrastructure layers can be detected, investigated, resolved, validated, and documented.
 
 ---
 
@@ -17,6 +17,13 @@ Terraform manages the core AWS infrastructure, IAM access, CloudWatch logging, m
 AWS Systems Manager Session Manager provides administrative access to the EC2 instance without requiring inbound SSH access.
 
 Amazon CloudWatch collects NGINX access and error logs and monitors EC2 health metrics.
+
+The Flask application includes health, readiness, and operational-status endpoints that distinguish between:
+
+- A running application process
+- An application that is ready to receive traffic
+- A degraded application caused by invalid required configuration
+- Dependencies that have not yet been implemented
 
 A separate Python-based AI log-intelligence workflow retrieves CloudWatch logs using `boto3` and uses the OpenAI API to assist with:
 
@@ -39,6 +46,12 @@ This project demonstrates how to:
 - Provision AWS infrastructure using Terraform
 - Deploy a Python Flask application on Amazon EC2
 - Structure a Flask application using an application factory
+- Implement application liveness and readiness checks
+- Report structured operational application status
+- Distinguish process health from service readiness
+- Validate required application configuration
+- Return appropriate HTTP 200 and HTTP 503 status codes
+- Report unimplemented dependencies honestly rather than simulating them
 - Serve Flask through Gunicorn
 - Use NGINX as a reverse proxy
 - Manage application services using systemd
@@ -78,6 +91,13 @@ This project demonstrates how to:
                                 ▼
                        Flask Application
                                 │
+             ┌──────────────────┼──────────────────┐
+             ▼                  ▼                  ▼
+         /healthz            /readyz        /api/v1/status
+         Liveness           Readiness       Operational status
+             │                  │                  │
+             └──────────────────┼──────────────────┘
+                                │
                 ┌───────────────┴───────────────┐
                 ▼                               ▼
          Application / Linux             NGINX Access and
@@ -92,9 +112,11 @@ This project demonstrates how to:
                            │                                      │
                            ▼                                      ▼
                     EC2 Monitoring                           SNS Topic
+```
 
 Administrative access:
 
+```text
 Engineer
    │
    ▼
@@ -105,9 +127,11 @@ Session Manager
    │
    ▼
 EC2 Instance
+```
 
 Log analysis:
 
+```text
 CloudWatch Logs
       │
       ▼
@@ -127,10 +151,10 @@ Incident Analysis / RCA
 ```text
 cloud-support-platform/
 ├── app/
-│   ├── __init__.py                 # Flask application factory
+│   ├── __init__.py                 # Flask application factory and startup state
 │   ├── app.py                      # WSGI application entry point
 │   ├── config.py                   # Environment-driven configuration
-│   ├── health.py                   # Application health route
+│   ├── health.py                   # Health, readiness and status endpoints
 │   └── routes.py                   # General application routes
 │
 ├── terraform/
@@ -189,14 +213,15 @@ The application factory:
 
 1. Creates the Flask application
 2. Loads configuration
-3. Registers the route blueprints
-4. Returns the configured application
+3. Records a monotonic process-start time for uptime measurement
+4. Registers the route blueprints
+5. Returns the configured application
 
 This separates application creation from individual routes and makes the code easier to maintain, extend, and test.
 
 ---
 
-## Application Configuration
+# Application Configuration
 
 Application configuration is environment-driven where appropriate.
 
@@ -206,34 +231,56 @@ Current configuration includes:
 |---|---|---|
 | `APP_NAME` | Application/service identifier | `flask-support-app` |
 | `APP_ENV` | Application environment | `development` |
+| `APP_VERSION` | Application version reported by the status API | `0.1.0` |
 
 Example on Linux:
 
 ```bash
 export APP_NAME="cloud-support-platform"
+export APP_ENV="production"
+export APP_VERSION="0.1.0"
 ```
 
 Example using PowerShell:
 
 ```powershell
 $env:APP_NAME="cloud-support-platform"
+$env:APP_ENV="production"
+$env:APP_VERSION="0.1.0"
 ```
 
 Environment-specific configuration should not be hardcoded into application source code.
 
+Required configuration values are also used by the readiness system to determine whether the application is ready to serve traffic.
+
 ---
 
-## Application Endpoints
+# Application Endpoints
 
-The current Flask application exposes three lightweight endpoints.
+The Flask service currently exposes:
 
-| Endpoint | Purpose | Expected Result |
+| Endpoint | Purpose | Healthy Status |
 |---|---|---|
-| `/` | Confirms the web application is responding | HTTP 200 |
-| `/health` | Reports application health | HTTP 200 JSON |
-| `/skill` | Returns project demonstration metadata | HTTP 200 JSON |
+| `/` | Basic application response | HTTP 200 |
+| `/health` | Legacy health endpoint retained for compatibility | HTTP 200 |
+| `/skill` | Project demonstration metadata | HTTP 200 |
+| `/healthz` | Application liveness check | HTTP 200 |
+| `/readyz` | Application readiness and dependency check | HTTP 200 or 503 |
+| `/api/v1/status` | Detailed operational application status | HTTP 200 or 503 |
 
-### Health response
+---
+
+## `/health`
+
+Legacy health endpoint retained for compatibility with the Day 8 application.
+
+Request:
+
+```bash
+curl -i http://127.0.0.1:5000/health
+```
+
+Example response:
 
 ```json
 {
@@ -242,16 +289,389 @@ The current Flask application exposes three lightweight endpoints.
 }
 ```
 
-### Skill response
+Expected:
+
+```text
+HTTP 200
+```
+
+---
+
+# Health and Readiness Design
+
+Health and readiness represent different operational states.
+
+```text
+Application process alive?
+        │
+        └── /healthz
+
+Application safe to receive traffic?
+        │
+        └── /readyz
+
+Need detailed diagnostic information?
+        │
+        └── /api/v1/status
+```
+
+A process can therefore be:
+
+```text
+Alive
+but
+Not Ready
+```
+
+For example, Flask may still be running while required configuration is invalid.
+
+In that situation:
+
+```text
+/healthz → HTTP 200
+/readyz  → HTTP 503
+```
+
+This allows infrastructure such as load balancers, container orchestrators, or monitoring systems to distinguish process availability from application readiness.
+
+---
+
+# `/healthz` — Liveness Endpoint
+
+`GET /healthz` determines whether the Flask application process is alive and capable of responding to HTTP requests.
+
+It intentionally performs minimal work.
+
+Request:
+
+```bash
+curl -i http://127.0.0.1:5000/healthz
+```
+
+Example response:
 
 ```json
 {
-  "service": "flask-support-app",
-  "skills": "Technical Support Engineering"
+  "application": "flask-support-app",
+  "status": "healthy",
+  "timestamp": "2026-08-10T23:43:20.011885Z"
 }
 ```
 
-All three endpoints have been validated locally and through Gunicorn on Amazon Linux.
+Expected status:
+
+```text
+HTTP/1.1 200 OK
+```
+
+### When to use `/healthz`
+
+Use this endpoint for:
+
+- Process liveness checks
+- Basic application monitoring
+- Container liveness probes
+- Determining whether the Python/Flask process can answer requests
+
+`/healthz` does not determine whether every required dependency is valid.
+
+---
+
+# `/readyz` — Readiness Endpoint
+
+`GET /readyz` determines whether the application is ready to serve traffic.
+
+Unlike `/healthz`, this endpoint evaluates required dependencies.
+
+Current readiness validation includes application configuration.
+
+Request:
+
+```bash
+curl -i http://127.0.0.1:5000/readyz
+```
+
+Healthy response:
+
+```json
+{
+  "application": "flask-support-app",
+  "dependencies": {
+    "configuration": {
+      "required": true,
+      "status": "healthy"
+    },
+    "database": {
+      "required": false,
+      "status": "not_configured"
+    },
+    "external_services": {
+      "required": false,
+      "status": "not_configured"
+    }
+  },
+  "status": "ready",
+  "timestamp": "2026-08-10T23:43:36.838902Z"
+}
+```
+
+Expected:
+
+```text
+HTTP/1.1 200 OK
+```
+
+---
+
+## Dependency Status
+
+Current dependencies are reported as:
+
+| Dependency | Required Today | Status |
+|---|---:|---|
+| Application configuration | Yes | Actively checked |
+| Database | No | `not_configured` |
+| External services | No | `not_configured` |
+
+PostgreSQL and external application services have not yet been implemented.
+
+The readiness endpoint therefore reports them as:
+
+```json
+{
+  "required": false,
+  "status": "not_configured"
+}
+```
+
+rather than incorrectly returning:
+
+```json
+{
+  "status": "healthy"
+}
+```
+
+This prevents the API from claiming dependencies exist when they do not.
+
+---
+
+# Readiness Failure Example
+
+A controlled failure was tested by supplying an invalid required configuration value:
+
+```powershell
+$env:APP_NAME=" "
+```
+
+The application process remained alive.
+
+Therefore:
+
+```text
+GET /healthz
+→ HTTP 200
+```
+
+However, the readiness check detected that `APP_NAME` was invalid:
+
+```text
+GET /readyz
+→ HTTP 503 Service Unavailable
+```
+
+Example response:
+
+```json
+{
+  "application": " ",
+  "dependencies": {
+    "configuration": {
+      "missing": [
+        "APP_NAME"
+      ],
+      "required": true,
+      "status": "unhealthy"
+    },
+    "database": {
+      "required": false,
+      "status": "not_configured"
+    },
+    "external_services": {
+      "required": false,
+      "status": "not_configured"
+    }
+  },
+  "status": "not_ready",
+  "timestamp": "2026-08-10T23:47:11.739126Z"
+}
+```
+
+Expected:
+
+```text
+HTTP/1.1 503 SERVICE UNAVAILABLE
+```
+
+This demonstrates the distinction between:
+
+```text
+Liveness
+    ↓
+"The application process is running."
+
+Readiness
+    ↓
+"The application is correctly configured and can receive traffic."
+```
+
+---
+
+# `/api/v1/status` — Operational Status API
+
+`GET /api/v1/status` provides more detailed information for operators, support engineers, monitoring systems, or troubleshooting workflows.
+
+Request:
+
+```bash
+curl -i http://127.0.0.1:5000/api/v1/status
+```
+
+Healthy example:
+
+```json
+{
+  "application": "flask-support-app",
+  "dependencies": {
+    "configuration": {
+      "required": true,
+      "status": "healthy"
+    },
+    "database": {
+      "required": false,
+      "status": "not_configured"
+    },
+    "external_services": {
+      "required": false,
+      "status": "not_configured"
+    }
+  },
+  "environment": "development",
+  "status": "healthy",
+  "timestamp": "2026-08-10T23:43:57.704450Z",
+  "uptime_seconds": 102.328,
+  "version": "0.1.0"
+}
+```
+
+Expected:
+
+```text
+HTTP/1.1 200 OK
+```
+
+The response includes:
+
+- Application name
+- Application version
+- Environment
+- Process uptime
+- Overall status
+- Dependency status
+- UTC timestamp
+
+---
+
+# Degraded Status Example
+
+When required configuration fails, `/api/v1/status` reports:
+
+```text
+HTTP 503
+```
+
+and:
+
+```json
+{
+  "application": " ",
+  "dependencies": {
+    "configuration": {
+      "missing": [
+        "APP_NAME"
+      ],
+      "required": true,
+      "status": "unhealthy"
+    },
+    "database": {
+      "required": false,
+      "status": "not_configured"
+    },
+    "external_services": {
+      "required": false,
+      "status": "not_configured"
+    }
+  },
+  "environment": "development",
+  "status": "degraded",
+  "uptime_seconds": 30.875,
+  "version": "0.1.0"
+}
+```
+
+This provides more troubleshooting information than the lightweight `/healthz` endpoint.
+
+---
+
+# Application Uptime
+
+The application records startup time using Python's:
+
+```python
+time.monotonic()
+```
+
+The status endpoint calculates:
+
+```text
+current monotonic time
+        -
+application worker start time
+        =
+uptime_seconds
+```
+
+Example:
+
+```json
+"uptime_seconds": 102.328
+```
+
+A later request returned:
+
+```json
+"uptime_seconds": 137.344
+```
+
+demonstrating that the value represents actual elapsed runtime rather than a hardcoded response.
+
+### Gunicorn note
+
+When multiple Gunicorn workers are used, this value represents the uptime of the Flask/Gunicorn worker process handling the request.
+
+It should not be interpreted as the total age of the EC2 instance.
+
+---
+
+# HTTP Status Behavior
+
+| Condition | `/healthz` | `/readyz` | `/api/v1/status` |
+|---|---:|---:|---:|
+| Application healthy and configured | 200 | 200 | 200 |
+| Required configuration invalid | 200 | 503 | 503 |
+| Flask process unavailable | No response | No response | No response |
+
+This behavior provides meaningful operational signals rather than returning HTTP 200 for every condition.
 
 ---
 
@@ -296,7 +716,7 @@ No broken requirements found.
 
 ---
 
-## Run with the Flask Development Server
+# Run with the Flask Development Server
 
 From the repository root:
 
@@ -310,12 +730,23 @@ The application listens locally on:
 http://127.0.0.1:5000
 ```
 
-Validate:
+Validate all major endpoints:
 
 ```bash
 curl http://127.0.0.1:5000/
 curl http://127.0.0.1:5000/health
 curl http://127.0.0.1:5000/skill
+curl http://127.0.0.1:5000/healthz
+curl http://127.0.0.1:5000/readyz
+curl http://127.0.0.1:5000/api/v1/status
+```
+
+On Windows PowerShell, using the actual curl executable avoids the PowerShell alias:
+
+```powershell
+curl.exe -i http://127.0.0.1:5000/healthz
+curl.exe -i http://127.0.0.1:5000/readyz
+curl.exe -i http://127.0.0.1:5000/api/v1/status
 ```
 
 The Flask development server is used only for local validation and is not the production-style WSGI server.
@@ -351,18 +782,21 @@ Validate the backend:
 curl -i http://127.0.0.1:5000/
 curl -i http://127.0.0.1:5000/health
 curl -i http://127.0.0.1:5000/skill
+curl -i http://127.0.0.1:5000/healthz
+curl -i http://127.0.0.1:5000/readyz
+curl -i http://127.0.0.1:5000/api/v1/status
 ```
 
-The refactored application was also validated separately on Amazon Linux using Gunicorn on port `5050`.
+The refactored application was previously validated separately on Amazon Linux using Gunicorn on port `5050`.
 
-All three application endpoints returned:
+Application responses confirmed:
 
 ```text
 HTTP/1.1 200 OK
 Server: gunicorn
 ```
 
-This confirmed that the new package structure and WSGI entry point work correctly under Gunicorn rather than only under Flask's development server.
+This confirmed that the package structure and WSGI entry point work correctly under Gunicorn rather than only under Flask's development server.
 
 > Gunicorn targets Unix-like operating systems. Local Windows testing uses Flask, while production-style Gunicorn validation is performed on Linux.
 
@@ -822,6 +1256,44 @@ The service eventually required forced process termination before being restarte
 
 ---
 
+## Application Readiness Failure
+
+**Symptom:** Flask remained responsive, but the service reported that it was not ready to serve requests.
+
+**Controlled cause:** A required application configuration value was intentionally set to an invalid value.
+
+**Evidence:**
+
+```text
+/healthz → 200
+/readyz  → 503
+/api/v1/status → 503
+```
+
+The readiness response identified:
+
+```json
+{
+  "missing": [
+    "APP_NAME"
+  ],
+  "status": "unhealthy"
+}
+```
+
+**Resolution:** Restored valid application configuration and restarted the process.
+
+Validation after recovery:
+
+```text
+/readyz → 200
+/api/v1/status → 200
+```
+
+This exercise demonstrated that application liveness does not necessarily mean the application is ready to receive traffic.
+
+---
+
 ## DNS / HTTPS Migration Validation
 
 A replacement EC2 deployment required validation across:
@@ -830,7 +1302,7 @@ A replacement EC2 deployment required validation across:
 - DNS
 - NGINX
 - HTTPS
-- application availability
+- Application availability
 
 The exercise demonstrated how infrastructure replacement can affect multiple layers even when the application itself is healthy.
 
@@ -838,7 +1310,7 @@ The exercise demonstrated how infrastructure replacement can affect multiple lay
 
 # Application Startup Troubleshooting
 
-When the Flask/Gunicorn application does not start, the following workflow can be used.
+When the Flask/Gunicorn application does not start or reports a degraded status, the following workflow can be used.
 
 ## Verify Python Imports
 
@@ -860,6 +1332,9 @@ Expected application routes currently include:
 /
 /health
 /skill
+/healthz
+/readyz
+/api/v1/status
 ```
 
 ---
@@ -875,6 +1350,58 @@ Expected:
 ```text
 No broken requirements found.
 ```
+
+---
+
+## Check Liveness
+
+```bash
+curl -i http://127.0.0.1:5000/healthz
+```
+
+If the process is running, expect:
+
+```text
+HTTP 200
+```
+
+---
+
+## Check Readiness
+
+```bash
+curl -i http://127.0.0.1:5000/readyz
+```
+
+Expected when ready:
+
+```text
+HTTP 200
+```
+
+Expected when required configuration is invalid:
+
+```text
+HTTP 503
+```
+
+---
+
+## Inspect Detailed Application Status
+
+```bash
+curl -i http://127.0.0.1:5000/api/v1/status
+```
+
+Review:
+
+- Overall status
+- Application version
+- Environment
+- Uptime
+- Configuration status
+- Dependency status
+- Timestamp
 
 ---
 
@@ -911,24 +1438,24 @@ ss -lntp | grep 5000
 ## Test Gunicorn Without NGINX
 
 ```bash
-curl -i http://127.0.0.1:5000/health
+curl -i http://127.0.0.1:5000/readyz
 ```
 
-If this succeeds but the public application fails, the investigation can move toward:
+If the direct backend request succeeds but the public application fails, investigation can move toward:
 
 - NGINX configuration
 - TLS
 - DNS
-- security groups
-- public networking
+- Security groups
+- Public networking
 
-If the backend test fails, the investigation remains focused on:
+If the backend request fails, investigation remains focused on:
 
 - Gunicorn
 - Flask
 - Python dependencies
 - systemd
-- application configuration
+- Application configuration
 
 ---
 
@@ -939,22 +1466,26 @@ The general incident-investigation process moves through each technical layer:
 ```text
 1. Confirm the reported symptom
 2. Reproduce the failure
-3. Validate DNS resolution
-4. Test network reachability
-5. Review AWS security controls
-6. Validate listening ports
-7. Check NGINX service health
-8. Check Gunicorn / Flask health
-9. Test the backend directly
-10. Inspect systemd and journal logs
-11. Inspect NGINX access and error logs
-12. Review CloudWatch logs and alarms
-13. Isolate the failure domain
-14. Apply remediation
-15. Validate service recovery
-16. Document root cause
-17. Record preventative actions
-18. Prepare a customer-facing update
+3. Check /healthz
+4. Check /readyz
+5. Inspect /api/v1/status
+6. Validate DNS resolution
+7. Test network reachability
+8. Review AWS security controls
+9. Validate listening ports
+10. Check NGINX service health
+11. Check Gunicorn / Flask health
+12. Test the backend directly
+13. Inspect systemd and journal logs
+14. Inspect NGINX access and error logs
+15. Review CloudWatch logs and alarms
+16. Validate application configuration
+17. Isolate the failure domain
+18. Apply remediation
+19. Validate service recovery
+20. Document root cause
+21. Record preventative actions
+22. Prepare a customer-facing update
 ```
 
 This layered approach helps determine whether a failure originates from:
@@ -973,6 +1504,8 @@ Gunicorn
 Flask
       ↓
 Application configuration
+      ↓
+Dependencies
 ```
 
 ---
@@ -1036,6 +1569,9 @@ A clean result returns no sensitive tracked files.
 - Python
 - Flask
 - Gunicorn
+- Flask Blueprints
+- Environment-based configuration
+- Health/readiness APIs
 
 ## Web and Networking
 
@@ -1043,6 +1579,7 @@ A clean result returns no sensitive tracked files.
 - DNS
 - TCP/IP
 - HTTP/HTTPS
+- HTTP status codes
 - SSL/TLS
 - Let's Encrypt
 - Certbot
@@ -1079,6 +1616,14 @@ A clean result returns no sensitive tracked files.
 - IAM roles and instance profiles
 - Production-style application deployment
 - Flask application architecture
+- Application factory pattern
+- Health endpoint design
+- Readiness endpoint design
+- Dependency health reporting
+- HTTP 200/503 operational semantics
+- Environment-driven configuration
+- Operational status APIs
+- Process uptime measurement
 - Gunicorn WSGI deployment
 - NGINX reverse-proxy troubleshooting
 - systemd service management
@@ -1110,10 +1655,22 @@ It does not yet provide:
 - Docker-based application deployment
 - Container orchestration
 - PostgreSQL application persistence
+- Real database readiness checks
+- Real external-service readiness checks
 - Complete automated test coverage
 - Fully automated CI/CD
 - Zero-downtime deployment
 - Distributed tracing
+
+The current readiness implementation checks required application configuration.
+
+Database and external-service dependencies are explicitly reported as:
+
+```text
+not_configured
+```
+
+until those dependencies are actually implemented.
 
 These limitations are documented intentionally so future architecture is not represented as currently implemented functionality.
 
@@ -1121,14 +1678,28 @@ These limitations are documented intentionally so future architecture is not rep
 
 # Development Roadmap
 
-## Application Health and Support APIs
+## Health and Readiness — Implemented
 
-Planned improvements include:
+Completed:
 
 - `/healthz`
 - `/readyz`
 - `/api/v1/status`
-- Real dependency readiness checks
+- Configuration readiness validation
+- HTTP 503 behavior for invalid required configuration
+- Structured dependency reporting
+- Application version reporting
+- Environment reporting
+- Process uptime reporting
+- UTC operational timestamps
+
+Future readiness improvements:
+
+- PostgreSQL connection check
+- External-service dependency checks
+- Dependency latency reporting
+- Database timeout handling
+- Readiness metrics
 
 ---
 
@@ -1229,6 +1800,24 @@ The underlying problem could exist in:
 - IAM
 - Monitoring configuration
 - Application configuration
+- Database connectivity
+- External dependencies
+
+A healthy process also does not necessarily mean a service is ready.
+
+For example:
+
+```text
+Flask running
+      ↓
+/healthz = 200
+
+Invalid required configuration
+      ↓
+/readyz = 503
+```
+
+That distinction is important in production systems because a service should not receive traffic simply because its process exists.
 
 This project demonstrates an end-to-end support workflow:
 
@@ -1237,6 +1826,12 @@ Customer symptom
       ↓
 Request reproduction
       ↓
+Liveness validation
+      ↓
+Readiness validation
+      ↓
+Operational status inspection
+      ↓
 DNS / network validation
       ↓
 AWS infrastructure validation
@@ -1244,6 +1839,8 @@ AWS infrastructure validation
 Linux service validation
       ↓
 NGINX / Gunicorn / Flask isolation
+      ↓
+Configuration / dependency validation
       ↓
 Log and metric analysis
       ↓
